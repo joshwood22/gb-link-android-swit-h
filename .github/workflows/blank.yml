@@ -80,7 +80,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mgba-LDN-Android-debug
-          path: |
-            **/build/outputs/apk/**/*.apk
-          if-no-files
-          -found: error
+          path: "**/build/outputs/
+          apk/**/*.apk"
