@@ -1,84 +1,239 @@
-name: Build mGBA-LDN Android APK
+name: Build GB-Link Android APK - RFU stream parser (getSignals fix)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout mGBA-LDN
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          repository: Gr3nSkyDragon/mgba_LDN
-          ref: mgba-ldn
-          fetch-depth: 1
-          submodules: recursive
 
-      - name: Set up Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
 
-      - name: Install Android build dependencies
-        shell: bash
-        run: |
-          set -euxo pipefail
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "cmake;3.31.6" "ndk;27.2.12479018"
-          yes | sdkmanager --licenses >/dev/null || true
-
-      - name: Inspect Android build layout
+      - name: Create Android project
         shell: bash
         run: |
           set -euo pipefail
-          echo "Gradle files:"
-          find . -type f \( -name "gradlew" -o -name "settings.gradle" -o -name "settings.gradle.kts" -o -name "build.gradle" -o -name "build.gradle.kts" \) -not -path "./.git/*" | sort
-          echo "Android manifests:"
-          find . -type f -name "AndroidManifest.xml" -not -path "./.git/*" | sort
+          cat > /tmp/project.zip.b64 <<'EOF'
+          UEsDBAoAAAAAAKdtO10AAAAAAAAAAAAAAAAUAAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9QSwMEFAAA
+          AAgAmG07XbKiX19GAAAASQAAACAAAABHQkxpbmtBbmRyb2lkQnJpZGdlL2J1aWxkLmdyYWRsZSvI
+          KU3PzCtWqOZSAILMFAX15PxcvcS8lKL8zBS9xIKCnMzkxJLM/Dx1hbLUomIgQ0HdQs9cz1hdASRZ
+          qZCWmFOcylXLBQBQSwMECgAAAAAAlXA7XQAAAAAAAAAAAAAAABgAAABHQkxpbmtBbmRyb2lkQnJp
+          ZGdlL2FwcC9QSwMEFAAAAAgAmG07XZwzuQsdAQAAEwIAACQAAABHQkxpbmtBbmRyb2lkQnJpZGdl
+          L2FwcC9idWlsZC5ncmFkbGWNkTFvwjAQhXd+xW2esDBRixRG1IEOIBWJtXLiIz3FsS3HoUVV/3vP
+          EGiHtmoWx6e79713DnZoyPXwDmRA1L6T2pnoyUgdgqVaJ/JOwMdkMta50+kO+6BrBEFeNpUl117H
+          qkimQbEElgpkcWdaKO4mwN9Y2YYsmYm9H2KNKy4zpSJL6QSP+qj3GHtukfuHp916u3lWiyUkHRtM
+          /+llr5lm8KAHyxPuQA3DvsVZm7+Md+Sy6fn9FXqJsITjBbXyBkHdrhteBoiZVFLlNfGiDAZ0Bl1N
+          yCnPZqgLFjt06cwHMTLf8pLrc6by60/JhZyJH+fy+zSUXoZKdtQWp3Loq2mPkbSdHnycjrplIZX6
+          TePGfsWqpVSOB/ufcwQO8AlQSwMECgAAAAAAlXA7XQAAAAAAAAAAAAAAABwAAABHQkxpbmtBbmRy
+          b2lkQnJpZGdlL2FwcC9zcmMvUEsDBAoAAAAAAJVwO10AAAAAAAAAAAAAAAAhAAAAR0JMaW5rQW5k
+          cm9pZEJyaWRnZS9hcHAvc3JjL21haW4vUEsDBAoAAAAAAJVwO10AAAAAAAAAAAAAAAAmAAAAR0JM
+          aW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vamF2YS9QSwMECgAAAAAAlXA7XQAAAAAAAAAA
+          AAAAACkAAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMvbWFpbi9qYXZhL2lvL1BLAwQKAAAA
+          AACVcDtdAAAAAAAAAAAAAAAAMAAAAEdCTGlua0FuZHJvaWRCcmlkZ2UvYXBwL3NyYy9tYWluL2ph
+          dmEvaW8vZ2JsaW5rL1BLAwQKAAAAAACVcDtdAAAAAAAAAAAAAAAAPgAAAEdCTGlua0FuZHJvaWRC
+          cmlkZ2UvYXBwL3NyYy9tYWluL2phdmEvaW8vZ2JsaW5rL2FuZHJvaWRicmlkZ2UvUEsDBBQAAAAI
+          AOFwO104S1lYLw8AAPsrAABPAAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vamF2
+          YS9pby9nYmxpbmsvYW5kcm9pZGJyaWRnZS9NYWluQWN0aXZpdHkuamF2YbUa23LbNvY9X4GwszFZ
+          0Yx8ieu1zLSyrCROfRtJbrPjejwUCUmMKUIhSF9W1cx+xH7hfsmeA4AkKFF2ujPrmSgicHDuNxxq
+          5vl33piSkDnjYRTGd44XBwkLg2ESBmPaevUqnM5YkhK17HizmfNja3mV8ZpFn8UpjdOanYmXBA9e
+          Qp2MD2u2H+jwLqw595jv/E6Hv4X0ocOmMy8toL56956TpWHkdFgUUT8NWcxXkN/DwTqaKG4drwLh
+          kcfp3m793ikbFxs+mzoTNmFOAcGHnCahFzlBEt7TRCPwDKzA2xffT+JZll5kKXyeeTGYKqmR98ea
+          NdC+nyWJMsCrWQbm9YkfeZyTMy+M26Cf+zB9IvQRrBRwUiwAqohO4SAn63hwTkMOp2hC5q8I/PHU
+          SwH7KIy9iPTTJIzHpN0ZnFyc3171j24vu72zk34fHolLjDW+5lQhjZbAfMWHiibJiq8tXJa8XaLU
+          KLq2dixUTaTGW2uFAKeXNJQ7EfCuFhmAPsQTypTxFvkEXEYAPQWlAfsxbKkl85SxGSgDHAc1Kp9M
+          y5JYpTK6j9TPUpYAE/ehT0Hb8hkw5VvcAZx9UFlEB5OEekG+YQImgertW9L7cEWC0BvHjIOm+QEB
+          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
+          tb4Ph/ZzhHwpSBO7vKelXI7+yLz2NkrkRaMyFgIES0MhxFLMc+WPOhYv3T8lW89cQKsMLF5QmrKN
+          /iuIXC5NcLdUIF4khQxjKRW+FCiVsgYQhS1ZM+Z/GCs/8PjDOIBaBrR+NkTOOzCEBAa4uP2HUfnh
+          hwQFaqugC2OdCl+gLX+fs0pIviQ3pCIXyy9BE5bK2ZsapxzD0YQ9KR3Os3jta0KrtTITA/2zhAbW
+          fCFewTD1ollM/9jMlIPSUr8WUhAKFr/6MZ/HmP+00OGTLA3YQ3zOHsQ8Ub3IKjjHK93i1X8BUEsD
+          BAoAAAAAAJVwO10AAAAAAAAAAAAAAAAlAAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21h
+          aW4vcmVzL1BLAwQKAAAAAACVcDtdAAAAAAAAAAAAAAAAKQAAAEdCTGlua0FuZHJvaWRCcmlkZ2Uv
+          YXBwL3NyYy9tYWluL3Jlcy94bWwvUEsDBBQAAAAIAJhtO10twj3pYgAAAHEAAAA6AAAAR0JMaW5r
+          QW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vcmVzL3htbC9kZXZpY2VfZmlsdGVyLnhtbEXLOw6E
+          IBAA0N5TkOnxs8UqCeBdZEZDoowZwHh8zTbbvuTZ+T52dZHkyMnB0PagKAXGmDYHtax6gtk3Vihz
+          lUDZ25oXjXTFQO9LyKIjOviO5q2nMNZQfvIxZhpBdd52/908UEsDBAoAAAAAAJVwO10AAAAAAAAA
+          AAAAAAAsAAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vcmVzL3ZhbHVlcy9QSwME
+          FAAAAAgAmG07XRV4SxBDAAAATwAAADcAAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMvbWFp
+          bi9yZXMvdmFsdWVzL3N0cmluZ3MueG1ssylKLc4vLUpOLbazKS4pysxLV8hLzE21VUosKIgHsZTs
+          3J10fTLzshUc81KK8jNTFJyKMlPSU230IcrtbPQRRnABAFBLAwQUAAAACACYbTtdW6bcp4wAAADJ
+          AAAANgAAAEdCTGlua0FuZHJvaWRCcmlkZ2UvYXBwL3NyYy9tYWluL3Jlcy92YWx1ZXMvc3R5bGVz
+          LnhtbG2OvQ6CMBSFd5+C1L2NMSymNIGBCZ18gZtylSZtL7m9Dry9SCQuTmc43/mxjIVe7LE4W2SJ
+          WGVI2Kh2nu8TJlTVDIxZGgV5ZArjZaPMZuorCHKAqIfwnETfqPUSKHfAytkgmL5te/ZBWXpIIS7K
+          FcjFmg/0F/UUiVvv123ljue+PnX1jpvtw6q/84c3UEsDBBQAAAAIAJhtO10mHRrJcwEAAMADAAA0
+          AAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vQW5kcm9pZE1hbmlmZXN0LnhtbKWT
+          y27CMBBF93wF8h57jwA1pZGKVKhEQ7doSCZgNXHc8YTC39chgQQkKlV4Oc9z7etRDkan6Lh/yDPj
+          hmASKnQyFjtmO1TKxTvMwckmLuMiV2C/FKFTTUxMen1/RqVDN7BIuXZOF6bfpIcGchyL84C2QM4W
+          UbhchJHoq+6IFIFLwjv9O6DkBwhl6TZyVzgWl0LC71ITenimEtupYG2mY+AuFHtZfuqT42OGKrA2
+          qgLtrAw2mJ3ypM3WS7briqMtqFCnGQIxHjgiSFMdj0UKmcPmQurdMeu95uONGjkHbYIm1w51MSGa
+          d9Jo+MQ7FrYgJtAdmXioYheZ7bLTQm3YNw9SnTHSde4CdPdx6mZZ18h5MFsINRn5q8NtQbcabprO
+          VfItWC2mr+FSqBs09QfbY9xXpmjoVx/P65fwczYN10EUBZ7o5X9EOTIMEmB4cGnHn64oKa5s5z+b
+          SnCvY1zXuy9urbnOtmkcrDoWnvRG6vxpJ71fUEsDBBQAAAAIAJhtO12QDzJbFQQAABgIAAAdAAAA
+          R0JMaW5rQW5kcm9pZEJyaWRnZS9SRUFETUUubWRtlU1TIzkMhu/5FarispsiHSCzs7OzJz52GAZ2
+          SBFYrq20lW4PbrvLdgfy71eyOyHDUMUhOLb0Snr05gAuzyY32j7BqVXeaQVnXqua4LfOu+jipqPf
+          R6P7RgfgPwSLUa9pd/nZY9eRB20jWUUKooPgDN+Izeut86+zD0fTR1ouyGs00GFsYOU8lOFZx6op
+          6qVhCYV2JTw32hAYwrW2dYqyFfhMS6iMJhsBrYJ/FvPZCay0b5/RE/S2atDWpIrR6OAA7tHXFKFB
+          r+Tr0STfnzze3d7+O+GH06zqM/x3dQHl0cvx6aeP5SHM839//nEyK/nRtoKucZamEZeGg7LmBh4W
+          Z/DVhciBbu8v+eoilQK+t1aUf9Ge7rghXOUN4erSE9mk7LHBCDqCchT42W1HNqQ6kx5Q/K6KZsNH
+          3vV1s5OwS6htiIQceQWezEaSOQu77hYc9NzZla57Tznyw+ndPXDWv06OPx4dwafvx4fQIqt92+JG
+          4qfBVy4FurI/WI0MPrRoDJSW51JjdL4IKVsJlWt5nnqpjY4bMLjJOLj3hhtcSkcvOkTJvTfSCi30
+          IXMzQCYVV85aVqCdFTnXRF2AsuieZmWCoGSxqniiTSh51lYZiartz1l+BSgzctV2zke0cY/v8XjH
+          /XhcwJUgFMC6CEseICx7baLMdAvWJBJPQ+WcHIHsWntnW0nC3WPUfdRVb9AfJlHfcI2LyusuysRg
+          WIj3etjiBixx6Nx5VD/6ECUuK12lWFXvvbTunQVhMDQPn7lApbS0j7PkZHOueXrHAAnMi+gJW2gp
+          Nk6FQjadV6kL+Xgb2FPnguahb5jaqs8ionAsMpzXtZb4eSN5iNJIHt4kuklCj0Hr9vhbYq8O0/h2
+          MX4CwXs9gDs/lxjDZm25BLfm9nD8AkTtnjg0DFjXM2+hGSKsjyEMprN9nhPzVyewzF638tgyKDne
+          tqt8X9gXLE4v5zeTWXH0d57xzvTCq+9h2hHicWOkfZuSNU/8aFuZXr3uWnC9r/iqU5RxPGO21Ej8
+          IKfJTiB1MVxbF1jEXmmXLQj3ji+uky8wKeyA8MCLhLtKtpcuPSr21rnpeV475vgkRduwnjdpiqwJ
+          Sq4379uQI/VP0bKv4XR+nbGxn0fHhTiP7Gu6kHmIeeeTgw66ExzsmjxrTl+MTgrRxkpl47mzrQ6B
+          kd0+5ezFaJanw5/BJcv8xV6mB/mkLEYfcgvG4/m5BMkAjcdsCZi8FdNqKApP0XWDGazegugpe19S
+          78xmpY1J+2HpJQJvfScEcHgm0GCVreu9TR6KHlxNPEe8O+5v2vlB8t5c4+402fHAiXjLS2d0paUA
+          lq5rK9zxj8TAc8CW3oWdf5JyFTcX36dzjdO7Lw/TyDDw9Si4tig/BSQ9yVtXjP4HUEsDBBQAAAAI
+          AJhtO13AANdRWAAAAGUAAAAlAAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9ncmFkbGUucHJvcGVydGll
+          c0vMSynKz0zRKy1OdYQwI2xLikpTuRKhEql5iUk5qV6pJZlpmalFELn8onS99KLElJxUvayy3MSi
+          9GJb3YjcCqN0BV2XtEygaGpecn5KZl66bWiIm64FFwBQSwMEFAAAAAgAmG07XRZDE/rGAAAAOgEA
+          ACMAAABHQkxpbmtBbmRyb2lkQnJpZGdlL3NldHRpbmdzLmdyYWRsZY2OQUsDMRCF7/srcku9bO8V
+          D22porRuWL0vYTPEabMzYTIriPS/m+1REDx+j8d7X05zRDp58hEmIDXfRiBzQWVBKBUjc0ywurs3
+          k/8E2teS+LRwFB8SuNuCY9ElNVdzbQJkoAA0fvVQOM2K/PfFiQO0BXTV/w4ft8/HoXsdXN+9HPbv
+          Q39w3Vv9/bfgjWtjlmTsh2oum/X6jJr9eGmR7SJbdYVZnfAZRm3JT/Bgn3ZHpMuWgjCGnWCIYBuk
+          Mc0BjN34nG3zA1BLAQIeAwoAAAAAAKdtO10AAAAAAAAAAAAAAAAUAAAAAAAAAAAAEAD9QQAAAABH
+          QkxpbmtBbmRyb2lkQnJpZGdlL1BLAQIeAxQAAAAIAJhtO12yol9fRgAAAEkAAAAgAAAAAAAAAAEA
+          AACkgTIAAABHQkxpbmtBbmRyb2lkQnJpZGdlL2J1aWxkLmdyYWRsZVBLAQIeAwoAAAAAAJVwO10A
+          AAAAAAAAAAAAAAAYAAAAAAAAAAAAEADtQbYAAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9QSwEC
+          HgMUAAAACACYbTtdnDO5Cx0BAAATAgAAJAAAAAAAAAABAAAApIHsAAAAR0JMaW5rQW5kcm9pZEJy
+          aWRnZS9hcHAvYnVpbGQuZ3JhZGxlUEsBAh4DCgAAAAAAlXA7XQAAAAAAAAAAAAAAABwAAAAAAAAA
+          AAAQAO1BSwIAAEdCTGlua0FuZHJvaWRCcmlkZ2UvYXBwL3NyYy9QSwECHgMKAAAAAACVcDtdAAAA
+          AAAAAAAAAAAAIQAAAAAAAAAAABAA7UGFAgAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21h
+          aW4vUEsBAh4DCgAAAAAAlXA7XQAAAAAAAAAAAAAAACYAAAAAAAAAAAAQAO1BxAIAAEdCTGlua0Fu
+          ZHJvaWRCcmlkZ2UvYXBwL3NyYy9tYWluL2phdmEvUEsBAh4DCgAAAAAAlXA7XQAAAAAAAAAAAAAA
+          ACkAAAAAAAAAAAAQAO1BCAMAAEdCTGlua0FuZHJvaWRCcmlkZ2UvYXBwL3NyYy9tYWluL2phdmEv
+          aW8vUEsBAh4DCgAAAAAAlXA7XQAAAAAAAAAAAAAAADAAAAAAAAAAAAAQAO1BTwMAAEdCTGlua0Fu
+          ZHJvaWRCcmlkZ2UvYXBwL3NyYy9tYWluL2phdmEvaW8vZ2JsaW5rL1BLAQIeAwoAAAAAAJVwO10A
+          AAAAAAAAAAAAAAA+AAAAAAAAAAAAEADtQZ0DAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMv
+          bWFpbi9qYXZhL2lvL2dibGluay9hbmRyb2lkYnJpZGdlL1BLAQIeAxQAAAAIAOFwO104S1lYLw8A
+          APsrAABPAAAAAAAAAAEAAACkgfkDAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMvbWFpbi9q
+          YXZhL2lvL2dibGluay9hbmRyb2lkYnJpZGdlL01haW5BY3Rpdml0eS5qYXZhUEsBAh4DCgAAAAAA
+          lXA7XQAAAAAAAAAAAAAAACUAAAAAAAAAAAAQAO1BlRMAAEdCTGlua0FuZHJvaWRCcmlkZ2UvYXBw
+          L3NyYy9tYWluL3Jlcy9QSwECHgMKAAAAAACVcDtdAAAAAAAAAAAAAAAAKQAAAAAAAAAAABAA7UHY
+          EwAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAvc3JjL21haW4vcmVzL3htbC9QSwECHgMUAAAACACY
+          bTtdLcI96WIAAABxAAAAOgAAAAAAAAABAAAApIEfFAAAR0JMaW5rQW5kcm9pZEJyaWRnZS9hcHAv
+          c3JjL21haW4vcmVzL3htbC9kZXZpY2VfZmlsdGVyLnhtbFBLAQIeAwoAAAAAAJVwO10AAAAAAAAA
+          AAAAAAAsAAAAAAAAAAAAEADtQdkUAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMvbWFpbi9y
+          ZXMvdmFsdWVzL1BLAQIeAxQAAAAIAJhtO10VeEsQQwAAAE8AAAA3AAAAAAAAAAEAAACkgSMVAABH
+          QkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMvbWFpbi9yZXMvdmFsdWVzL3N0cmluZ3MueG1sUEsB
+          Ah4DFAAAAAgAmG07XVum3KeMAAAAyQAAADYAAAAAAAAAAQAAAKSBuxUAAEdCTGlua0FuZHJvaWRC
+          cmlkZ2UvYXBwL3NyYy9tYWluL3Jlcy92YWx1ZXMvc3R5bGVzLnhtbFBLAQIeAxQAAAAIAJhtO10m
+          HRrJcwEAAMADAAA0AAAAAAAAAAEAAACkgZsWAABHQkxpbmtBbmRyb2lkQnJpZGdlL2FwcC9zcmMv
+          bWFpbi9BbmRyb2lkTWFuaWZlc3QueG1sUEsBAh4DFAAAAAgAmG07XZAPMlsVBAAAGAgAAB0AAAAA
+          AAAAAQAAAKSBYBgAAEdCTGlua0FuZHJvaWRCcmlkZ2UvUkVBRE1FLm1kUEsBAh4DFAAAAAgAmG07
+          XcAA11FYAAAAZQAAACUAAAAAAAAAAQAAAKSBsBwAAEdCTGlua0FuZHJvaWRCcmlkZ2UvZ3JhZGxl
+          LnByb3BlcnRpZXNQSwECHgMUAAAACACYbTtdFkMT+sYAAAA6AQAAIwAAAAAAAAABAAAApIFLHQAA
+          R0JMaW5rQW5kcm9pZEJyaWRnZS9zZXR0aW5ncy5ncmFkbGVQSwUGAAAAABUAFQA5BwAAUh4AAAAA
+          EOF
+          base64 -d /tmp/project.zip.b64 > /tmp/project.zip
+          rm -rf /tmp/gblink
+          mkdir -p /tmp/gblink
+          unzip -q /tmp/project.zip -d /tmp/gblink
 
-      - name: Build Android application
+      - name: Accept Android SDK licenses and install required SDK packages
         shell: bash
         run: |
           set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
-          WRAPPER="$(find . -type f -name gradlew -not -path "./.git/*" | sort | head -n 1 || true)"
-          if [ -n "$WRAPPER" ]; then
-            PROJECT="$(dirname "$WRAPPER")"
-            chmod +x "$WRAPPER"
-            cd "$PROJECT"
-            ./gradlew assembleDebug --stacktrace --no-daemon
-            exit 0
-          fi
-
-          SETTINGS="$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) -not -path "./.git/*" | sort | head -n 1 || true)"
-          if [ -n "$SETTINGS" ]; then
-            PROJECT="$(dirname "$SETTINGS")"
-            cd "$PROJECT"
-            gradle assembleDebug --stacktrace --no-daemon
-            exit 0
-          fi
-
-          echo "::error::No Gradle Android project exists in the checked-out mgba_LDN branch."
-          echo "No second/fake Android project will be generated."
-          exit 1
-
-      - name: List APK outputs
-        if: success()
+      - name: Validate embedded Android project
         shell: bash
         run: |
-          find . -type f -name "*.apk" -not -path "./.git/*" | sort
+          set -euo pipefail
+          test -f /tmp/gblink/GBLinkAndroidBridge/settings.gradle
+          test -f /tmp/gblink/GBLinkAndroidBridge/app/build.gradle
+          test -f /tmp/gblink/GBLinkAndroidBridge/app/src/main/java/io/gblink/androidbridge/MainActivity.java
+          grep -q 'RFU-FRAME' /tmp/gblink/GBLinkAndroidBridge/app/src/main/java/io/gblink/androidbridge/MainActivity.java
+          grep -q 'RFU-TX' /tmp/gblink/GBLinkAndroidBridge/app/src/main/java/io/gblink/androidbridge/MainActivity.java
+
+      - name: Build debug APK
+        working-directory: /tmp/gblink/GBLinkAndroidBridge
+        run: gradle assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: mgba-LDN-Android-debug
-          path: "**/build/outputs/
-          apk/**/*.apk"
+          name: GB-Link-Android-RFU-stream-parser-signals-fix-debug
+          path: /tmp/gblink/GBLinkAndroidBridge/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
